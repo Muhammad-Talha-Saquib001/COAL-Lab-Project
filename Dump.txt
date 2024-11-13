@@ -1,0 +1,28 @@
+.586
+.MODEL flat, stdcall
+.STACK 4096
+
+INCLUDE \masm32\include\masm32rt.inc   ; MASM32 runtime library
+
+.DATA
+    prompt_Str1 BYTE "****************************", 13, 10, \
+                      "*   Welcome to the ATM System   *", 13, 10, \
+                      "****************************", 13, 10, 0
+    prompt_Str2 BYTE "* 1. Customer                 *", 13, 10, 0
+    prompt_Str3 BYTE "* 2. Bank Employee        *", 13, 10, 0
+    prompt_Str4 BYTE "* Please choose your role:   *", 0
+    invalidInput BYTE "* Invalid input. Please enter 1 or 2.   *", 13, 10, 0
+    role BYTE 21 DUP(0)                 ; Define 'role' as a buffer (20 chars + null terminator)
+
+.CODE
+displayMenu PROC
+    pushad
+
+   
+
+    ; Restore registers and return
+    popad
+    ret
+displayMenu ENDP
+
+END
