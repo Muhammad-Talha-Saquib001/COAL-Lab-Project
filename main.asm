@@ -1,33 +1,90 @@
 INCLUDE Irvine32.inc
 
+.code
+    ; Procedure to Remove Trailing Newline Characters
+    stripNewline PROC
+        pushad
+        
+        ; Remove trailing newline characters from a string
+        mov ecx, edx                    ; Load the address of the string into ecx
+
+        strip_loop:
+            cmp BYTE PTR [ecx], 0       ; Check if end of string
+            je strip_end                ; If null terminator, end loop
+            cmp BYTE PTR [ecx], 13      ; Check for carriage return
+            je strip_char               ; If carriage return, proceed to strip_char
+            cmp BYTE PTR [ecx], 10      ; Check for newline
+            je strip_char               ; If newline, proceed to strip_char
+            inc ecx                     
+            jmp strip_loop              
+
+        strip_char:
+            mov BYTE PTR [ecx], 0       ; Replace character with null terminator
+            jmp strip_end
+
+        strip_end:
+        popad
+    ret
+    stripNewline ENDP
+
+
 .data
-	;	Display Menu
+    ;======================================================================================================================
+	; Display Menu
 	msg_Welcome BYTE "*****************************", 13, 10, \ 
 					 "* Welcome to the ATM System *", 13, 10, \ 
 					 "*****************************", 13, 10, 0
 	msg_MenuOptions BYTE " 1. Customer ", 13, 10, \
-					 " 2. Bank Employee ", 13, 10, 0 
+					     " 2. Bank Employee ", 13, 10, 0 
 	msg_PromptRole BYTE " Please choose your role: ", 0
 	invalidInput BYTE "* Invalid input. Please enter 1 or 2. *", 13, 10, 0
 	user_Role BYTE ?                                                             ;   Variable to store the role of the user
+    ;======================================================================================================================
 
-    ;   Customer Operations
+    ;======================================================================================================================
+    ; Customer Operations
+
+    ; User Login
     user_CardID BYTE 21 DUP(0)                                                   ; Variable to store the user's card ID
     user_AccountPIN BYTE 21 DUP(0)                                               ; Variable to store the user's PIN
-    prompt_ID BYTE "Enter card ID: ", 0
-    prompt_PIN BYTE "Enter PIN: ", 0
-    msg_Error BYTE "Incorrect PIN.", 13, 10, \
-                      "Please try again.", 13, 10, 0
-    msg_Success BYTE "Login Successful", 0
+    msg_Header BYTE "====================================", 13, 10, \
+                    "             User Login             ", 13, 10, \
+                    "====================================", 13, 10, 0
+
+    prompt_ID BYTE " Please enter your card ID: ", 0
+    prompt_PIN BYTE " Please enter your PIN: ", 0
+    msg_Error BYTE " Incorrect PIN. ", 13, 10, \
+                   " Please try again. ", 13, 10, 0
+    msg_Success BYTE " Login Successful! ", 13, 10, \
+                     "====================================", 13, 10, 0
+
+    ; User Login Verification
+    predefined_CardID BYTE "12345678", 0                                        ; Predefined card ID
+    predefined_PIN BYTE "1234", 0                                               ; Predefined PIN
+
+    ; User Operations
+    msg_UserOptionsPart1 BYTE   "===============================", 13, 10, \
+                                "* Please choose an option:     *", 13, 10, \
+                                "===============================", 13, 10, 0
+    msg_UserOptionsPart2 BYTE   "* 1. Withdraw Amount           *", 13, 10, \
+                                "* 2. Deposit Money             *", 13, 10, \
+                                "* 3. Check Balance             *", 13, 10, 0
+    msg_UserOptionsPart3 BYTE   "* 4. Transfer Funds            *", 13, 10, \
+                                "* 5. Exit                      *", 13, 10, \
+                                "===============================", 13, 10, 0
+    user_Option BYTE ?                                                          ; Variable to store the user's option
+    msg_PromptOption BYTE "Enter your choice: ", 0
+    msg_InvalidInput BYTE "Invalid input. Please try again.", 0
+    ;======================================================================================================================
 
 .code
 	main PROC
         ; Display the menu and get the role from the user
 		call displayMenu
-        call Clrscr
+        call clrscr
 
         ; Check the role and call the appropriate parent function
-        mov al, user_Role
+        mov al, [user_Role]
         cmp al, '1'
         je callCustomerOperations
         cmp al, '2'
@@ -66,7 +123,7 @@ INCLUDE Irvine32.inc
             call ReadString           
 
             ; Check the input for valid option
-            mov al, user_Role              
+            mov al, [user_Role]              
             cmp al, '1'                
             je valid_input             
             cmp al, '2'                
@@ -91,6 +148,8 @@ INCLUDE Irvine32.inc
         pushad
         
         call collectUserInfo
+        call clrscr
+        call displayUserOptions
 
         popad
     ret
@@ -99,29 +158,188 @@ INCLUDE Irvine32.inc
     collectUserInfo PROC
         pushad
 
-        ; Display prompt for card ID
-        mov edx, offset prompt_ID
+        ; Display header for user login
+        mov edx, offset msg_Header
         call WriteString
-        mov ecx, 20                     
-        lea edx, user_CardID             ; Load the address of 'user_CardID' into edx
-        call ReadString                  
+        call crlf
 
-        ; Display prompt for PIN
-        mov edx, offset prompt_PIN
-        call WriteString
-        mov ecx, 20                      
-        lea edx, user_AccountPIN         ; Load the address of 'user_AccountPIN' into edx
-        call ReadString                  
-        call crlf                       
+        id_loop: 
+            ; Display prompt for card ID
+            mov edx, offset prompt_ID
+            call WriteString
+            mov ecx, 20                     
+            lea edx, user_CardID            ; Load the address of 'user_CardID' into edx
+            call ReadString   
+        
+            ; Remove trailing newline characters from user input 
+            lea edx, user_CardID 
+            call stripNewline
 
-        ; For demonstration, display a success message
-        mov edx, offset msg_Success
+            ; Check the card ID 
+            call checkCardID 
+            cmp eax, 0 
+            je invalid_card                 ; If card ID is invalid, jump to invalid_card
+
+            ; Card ID is valid, now prompt for PIN
+            pin_loop: 
+                ; Display prompt for PIN
+                mov edx, offset prompt_PIN
+                call WriteString
+                mov ecx, 20                      
+                lea edx, user_AccountPIN        ; Load the address of 'user_AccountPIN' into edx
+                call ReadString                  
+                call crlf              
+            
+                ; Remove trailing newline characters from user input 
+                lea edx, user_AccountPIN 
+                call stripNewline
+
+                ; Check the PIN 
+                call checkPIN 
+                cmp eax, 0 
+                je invalid_pin                  ; If PIN is invalid, jump to invalid_pin
+
+                ; If both ID and PIN are valid, display success message
+                mov edx, offset msg_Success
+                call WriteString
+                call crlf        
+                jmp end_collect
+
+            invalid_pin: 
+                mov edx, offset msg_Error  
+                call WriteString 
+                call crlf
+
+            jmp pin_loop                       ; Prompt for PIN again
+
+            invalid_card: 
+                mov edx, offset msg_Error 
+                call WriteString 
+                call crlf 
+
+            jmp id_loop                        ; Prompt for card ID again
+
+        end_collect:
+            popad
+    ret
+    collectUserInfo ENDP
+
+    checkCardID PROC
+        ; Compare user_CardID with predefined_CardID
+        lea edx, user_CardID                            ; Load the address of 'user_CardID'
+        lea ecx, predefined_CardID                      ; Load the address of 'predefined_CardID' 
+
+        compare_loop:
+            mov al, [edx]                               ; Load a byte from user_CardID
+            mov bl, [ecx]                               ; Load a byte from predefined_CardID
+            cmp al, bl
+            jne not_equal
+
+            ; Check if end of string (null terminator)
+            cmp al, 0
+            je equal                                    ; If null terminator, strings are equal
+
+            ; Increment pointers 
+            inc edx 
+            inc ecx 
+            jmp compare_loop
+
+        equal:
+            ; IDs are equal 
+            mov eax, 1                                  ; Return 1 for equal 
+            jmp end_check
+
+        not_equal:
+            ; IDs are not equal 
+            mov eax, 0                                  ; Return 0 for not equal
+
+        end_check:
+    ret
+    checkCardID ENDP
+
+    checkPIN PROC
+        ; Compare user_AccountPIN with predefined_PIN
+        lea edx, user_AccountPIN                        ; Load the address of 'user_AccountPIN'
+        lea ecx, predefined_PIN                         ; Load the address of 'predefined_PIN'
+
+        compare_loop:
+            mov al, [edx]                               ; Load a byte from user_AccountPIN
+            mov bl, [ecx]                               ; Load a byte from predefined_PIN
+            cmp al, bl                                  
+            jne not_equal                               
+
+            ; Check if end of string (null terminator)
+            cmp al, 0 
+            je equal                                    ; If null terminator, strings are equal
+
+            ; Increment pointers 
+            inc edx 
+            inc ecx 
+            jmp compare_loop
+
+        equal:
+            ; PINs are equal 
+            mov eax, 1                                  ; Return 1 for equal 
+            jmp end_check
+
+        not_equal: 
+            ; PINs are not equal 
+            mov eax, 0                                  ; Return 0 for not equal
+
+        end_check:
+    ret
+    checkPIN ENDP
+
+    displayUserOptions PROC
+        pushad
+
+        ; Display the options to the user
+        mov edx, offset msg_UserOptionsPart1
         call WriteString
-        call crlf                       
+        mov edx, offset msg_UserOptionsPart2
+        call WriteString
+        mov edx, offset msg_UserOptionsPart3
+        call WriteString
+        call crlf
+
+        ; Loop to keep asking for input until a valid option is selected
+        option_loop:
+            mov edx, offset msg_PromptOption
+            call WriteString
+            mov ecx, 2                       
+            lea edx, user_Option             
+            call ReadString                  
+            call crlf                       
+
+            ; Remove trailing newline characters from user input
+            lea edx, user_Option
+            call stripNewline
+
+            ; Check if the input is valid
+            mov al, user_Option
+            cmp al, '1'
+            je valid_option
+            cmp al, '2'
+            je valid_option
+            cmp al, '3'
+            je valid_option
+            cmp al, '4'
+            je valid_option
+            cmp al, '5'
+            je valid_option
+
+            ; If the input is invalid, display error message and prompt again
+            mov edx, offset msg_InvalidInput
+            call WriteString
+            call crlf
+        jmp option_loop                 
+
+        valid_option:
+            call crlf
 
         popad
     ret
-    collectUserInfo ENDP
+    displayUserOptions ENDP
 
     employeeOperations PROC
         pushad
