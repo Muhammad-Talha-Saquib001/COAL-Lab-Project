@@ -5,7 +5,6 @@ INCLUDE Irvine32.inc
     stripNewline PROC
         pushad
         
-        ; Remove trailing newline characters from a string
         mov ecx, edx                    ; Load the address of the string into ecx
 
         strip_loop:
@@ -47,9 +46,9 @@ INCLUDE Irvine32.inc
     ; User Login
     user_CardID BYTE 21 DUP(0)                                                   ; Variable to store the user's card ID
     user_AccountPIN BYTE 21 DUP(0)                                               ; Variable to store the user's PIN
-    msg_Header BYTE "====================================", 13, 10, \
-                    "             User Login             ", 13, 10, \
-                    "====================================", 13, 10, 0
+    msg_UserHeader BYTE "====================================", 13, 10, \
+                        "             User Login             ", 13, 10, \
+                        "====================================", 13, 10, 0
 
     prompt_ID BYTE " Please enter your card ID: ", 0
     prompt_PIN BYTE " Please enter your PIN: ", 0
@@ -75,6 +74,21 @@ INCLUDE Irvine32.inc
     user_Option BYTE ?                                                          ; Variable to store the user's option
     msg_PromptOption BYTE "Enter your choice: ", 0
     msg_InvalidInput BYTE "Invalid input. Please try again.", 0
+    ;======================================================================================================================
+
+    ;======================================================================================================================
+    ; Employee Operations
+
+    ; Employee Login
+    employee_CardID BYTE 21 DUP(0)                                              ; Variable to store the employee's card ID
+    employee_AccountPIN BYTE 21 DUP(0)                                          ; Variable to store the user's PIN
+    msg_EmpHeader BYTE "====================================", 13, 10, \
+                       "           Employee Login           ", 13, 10, \
+                       "====================================", 13, 10, 0
+
+    ; Employee Login Verification
+    predefined_CardIDs BYTE "12345678", 0, "87654321", 0, "43218765", 0, 0
+    predefined_PINs BYTE "1234", 0, "5678", 0, "4321", 0, 0
     ;======================================================================================================================
 
 .code
@@ -159,7 +173,7 @@ INCLUDE Irvine32.inc
         pushad
 
         ; Display header for user login
-        mov edx, offset msg_Header
+        mov edx, offset msg_UserHeader
         call WriteString
         call crlf
 
@@ -343,8 +357,147 @@ INCLUDE Irvine32.inc
 
     employeeOperations PROC
         pushad
+
+        call collectEmployeeInfo
+        call clrscr
+
         popad
     ret
     employeeOperations ENDP
+
+    collectEmployeeInfo PROC
+        pushad
+
+        ; Display header for employee login
+        mov edx, offset msg_EmpHeader
+        call WriteString
+        call crlf
+
+        id_loop: 
+            ; Display prompt for card ID
+            mov edx, offset prompt_ID
+            call WriteString
+            mov ecx, 20                     
+            lea edx, employee_CardID           
+            call ReadString   
+        
+            lea edx, employee_CardID 
+            call stripNewline
+
+            ; Check the card ID 
+            call check_EmpCardID 
+            cmp eax, 0 
+            je invalid_card                 
+
+            ; Card ID is valid, now prompt for PIN
+            pin_loop: 
+                ; Display prompt for PIN
+                mov edx, offset prompt_PIN
+                call WriteString
+                mov ecx, 20                      
+                lea edx, employee_AccountPIN        
+                call ReadString                  
+                call crlf              
+            
+                ; Remove trailing newline characters from employee input
+                lea edx, employee_AccountPIN 
+                call stripNewline
+
+                ; Check the PIN 
+                call check_EmpPIN 
+                cmp eax, 0 
+                je invalid_pin                  
+
+                ; If both ID and PIN are valid, display success message
+                mov edx, offset msg_Success
+                call WriteString
+                call crlf        
+                jmp end_collect
+
+            invalid_pin: 
+                mov edx, offset msg_Error  
+                call WriteString 
+                call crlf
+
+            jmp pin_loop                      
+
+            invalid_card: 
+                mov edx, offset msg_Error 
+                call WriteString 
+                call crlf 
+
+            jmp id_loop                        
+
+        end_collect:
+            popad
+    ret
+    collectEmployeeInfo ENDP
+
+    check_EmpCardID PROC
+        lea edx, employee_CardID                        ; Load the address of 'employee_CardID'
+        lea ecx, predefined_CardIDs                     ; Load the address of 'predefined_CardIDs'
+        mov esi, 0                                      ; Index for predefined Card IDs
+            
+        _checkCardID:
+            mov edi, esi                                ; Store the current index
+            mov al, [edx]                               ; Load a byte from user_CardID
+            mov bl, [ecx + edi]                         ; Load a byte from predefined_CardIDs
+            cmp al, bl
+            jne _next                                   ; If not equal, check next ID
+
+            ; Check if end of string (null terminator)
+            cmp al, 0
+            je _equal                                   ; If null terminator, IDs are equal
+
+            ; Increment pointers 
+            inc edx
+            inc ecx
+        jmp _checkCardID
+
+            _equal:
+                mov eax, 1                              ; Return 1 for equal 
+                ret
+            _next:
+                ; Move to the next Card ID (8 bytes for each ID)
+                add esi, 9                              ; Move to the next ID (8 characters + 1 for null terminator)
+                cmp BYTE PTR [ecx + esi], 0             ; Check if we reached the end of predefined Card IDs
+        jne _checkCardID                                ; If not, continue checking
+
+            ; If we reach here, no match was found
+            mov eax, 0                                  ; Return 0 for not equal
+    ret
+    check_EmpCardID ENDP
+
+    check_EmpPIN PROC
+        lea edx, employee_AccountPIN                    ; Load the address of 'employee_AccountPIN'
+        lea ecx, predefined_PINs                        ; Load the address of 'predefined_PINs'
+        mov esi, 0                                      ; Index for predefined PINs
+
+        _checkPIN:
+            mov edi, esi                                ; Store the current index
+            mov al, [edx]                               ; Load a byte from employee_AccountPIN
+            mov bl, [ecx + edi]                         ; Load a byte from predefined_PINs
+            cmp al, bl
+            jne _next                                   ; If not equal, check next PIN
+
+            cmp al, 0
+            je _equal                                   ; If null terminator, PINs are equal
+
+            inc edx
+            inc ecx
+        jmp _checkPIN
+            
+            _equal:
+                mov eax, 1                              ; Return 1 for equal
+                ret
+            _next:
+                ; Move to the next PIN (4 bytes for each PIN)
+                add esi, 5                              ; Move to the next PIN (4 characters + 1 for null terminator)
+                cmp BYTE PTR [ecx + esi], 0             ; Check if we reached the end of predefined PINs
+        jne _checkPIN                                   ; If not, continue checking
+
+        mov eax, 0                                      ; Return 0 for not equal
+    ret
+    check_EmpPIN ENDP
 
 	END main
