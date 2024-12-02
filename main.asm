@@ -29,15 +29,15 @@ INCLUDE Irvine32.inc
 
 .data
     ;======================================================================================================================
-	; Display Menu
-	msg_Welcome BYTE "*****************************", 13, 10, \ 
-					 "* Welcome to the ATM System *", 13, 10, \ 
-					 "*****************************", 13, 10, 0
-	msg_MenuOptions BYTE " 1. Customer ", 13, 10, \
-					     " 2. Bank Employee ", 13, 10, 0 
-	msg_PromptRole BYTE " Please choose your role: ", 0
-	invalidInput BYTE "* Invalid input. Please enter 1 or 2. *", 13, 10, 0
-	user_Role BYTE ?                                                             ;   Variable to store the role of the user
+    ; Display Menu
+    msg_Welcome BYTE "*****************************", 13, 10, \ 
+					           "* Welcome to the ATM System *", 13, 10, \ 
+					           "*****************************", 13, 10, 0
+    msg_MenuOptions BYTE " 1. Customer ", 13, 10, \
+					               " 2. Bank Employee ", 13, 10, 0 
+    msg_PromptRole BYTE " Please choose your role: ", 0
+    invalidInput BYTE "* Invalid input. Please enter 1 or 2. *", 13, 10, 0
+    userRole DWORD ?                                                            ;   Variable to store the role of the user
     ;======================================================================================================================
 
     ;======================================================================================================================
@@ -74,6 +74,33 @@ INCLUDE Irvine32.inc
     user_Option BYTE ?                                                          ; Variable to store the user's option
     msg_PromptOption BYTE "Enter your choice: ", 0
     msg_InvalidInput BYTE "Invalid input. Please try again.", 0
+    user_DefaultBalance DWORD ?
+
+    ; Withdrawal Operation
+    msg_WithdrawalHeader BYTE "====================================", 13, 10, \
+                              "           Withdraw Amount          ", 13, 10, \
+                              "====================================", 13, 10, 0
+    prompt_WithdrawAmount BYTE "Enter the amount to withdraw: ", 0
+    msg_SuccessfulWithdraw BYTE "Your amount has been withdrawn.", 13, 10, \
+                                 "Collect it from the cash dispenser.", 13, 10, 0
+    msg_UnsuccessfulWithdraw BYTE "Sorry, you do not have enough balance.", 13, 10, \
+                                  "Please try again.", 13, 10, 0
+    prompt_Exit BYTE "Press any key to go back...", 13, 10, 0
+
+    ; Deposit
+    msg_DepositHeader BYTE "====================================", 13, 10, \
+                           "            Deposit Money           ", 13, 10, \
+                           "====================================", 13, 10, 0
+    prompt_DepositAmount BYTE "Enter the amount to deposit: ", 0
+    msg_SuccessfulDeposit BYTE "The amount has been successfully added to your account.", 0
+    msg_UnsuccessfulDeposit BYTE "Invalid amount. Please enter a value between 1 and 50,000 Rupees.", 0
+
+    ; Check Balance
+    msg_BalanceHeader BYTE "====================================", 13, 10, \
+                           "          Current Balance           ", 13, 10, \
+                           "====================================", 13, 10, 0
+    msg_Balance BYTE "Your current account balance is: ", 0
+    currencySuffix BYTE ".00 Rs", 0
     ;======================================================================================================================
 
     ;======================================================================================================================
@@ -89,34 +116,46 @@ INCLUDE Irvine32.inc
     ; Employee Login Verification
     predefined_CardIDs BYTE "12345678", 0, "87654321", 0, "43218765", 0, 0
     predefined_PINs BYTE "1234", 0, "5678", 0, "4321", 0, 0
+
+    ; Error Handling
+    errorMessage BYTE 101 DUP(0)                                            ; Buffer to store the current error message
+    lastErrorMsg BYTE 101 DUP(0)                                            ; Buffer to store the last occurred error message
+    msg_LastError BYTE "Last occurred error: ", 0
+    msg_NoError BYTE "No errors have occurred.", 0
+    prompt_Error BYTE "Enter the new error message: ", 0
+
+    ; Software Update
+    msg_UpdatePrompt BYTE "Enter the update version number: ", 0
+    msg_UpdateComplete BYTE "Software update to version ", 0
+    msg_UpdateSuccess BYTE " completed successfully!", 0
+    updateVersion BYTE 21 DUP(0)                                            ; Buffer to store the update version number
     ;======================================================================================================================
 
 .code
-	main PROC
+    main PROC
         ; Display the menu and get the role from the user
-		call displayMenu
+		    call displayMenu
         call clrscr
 
         ; Check the role and call the appropriate parent function
-        mov al, [user_Role]
-        cmp al, '1'
+        mov eax, userRole
+        cmp eax, 1
         je callCustomerOperations
-        cmp al, '2'
+        cmp eax, 2
         je callEmployeeOperations
 
         callCustomerOperations:
             call customerOperations
-
+            jmp _exit
         callEmployeeOperations:
             call employeeOperations
 
-	invoke ExitProcess, 0
-	main ENDP
+        _exit:
 
-	displayMenu PROC
-		pushad
+    invoke ExitProcess, 0
+    main ENDP
 
-		; Display header and options
+    displayMenu PROC
         mov edx, offset msg_Welcome
         call WriteString
         call crlf
@@ -127,36 +166,30 @@ INCLUDE Irvine32.inc
         call crlf
         call crlf
 
-        ; Loop to keep asking for input until a valid option is selected
         input_loop:
             mov edx, offset msg_PromptRole
             call WriteString
 
-            mov ecx, 20                     ; Maximum number of characters to read
-            lea edx, user_Role              ; Load the address of 'role' into edx
-            call ReadString           
+            call ReadDec            
 
-            ; Check the input for valid option
-            mov al, [user_Role]              
-            cmp al, '1'                
-            je valid_input             
-            cmp al, '2'                
-            je valid_input             
+            cmp eax, 1              
+            je valid_input          
+            cmp eax, 2              
+            je valid_input          
 
-            ; If input is invalid, display error message
             mov edx, offset invalidInput
             call WriteString
             call crlf
             call crlf
-        jmp input_loop             
+        jmp input_loop          
 
         valid_input:
+            mov userRole, eax
             call crlf
             call crlf
 
-		popad
-	ret
-	displayMenu ENDP
+    ret
+    displayMenu ENDP
 
     customerOperations PROC
         pushad
@@ -164,6 +197,7 @@ INCLUDE Irvine32.inc
         call collectUserInfo
         call clrscr
         call displayUserOptions
+        call clrscr
 
         popad
     ret
@@ -355,6 +389,113 @@ INCLUDE Irvine32.inc
     ret
     displayUserOptions ENDP
 
+    userWithdraw PROC
+        pushad
+
+        ; Display Header
+        mov edx, offset msg_WithdrawalHeader
+        call WriteString
+
+        _withDrawal:
+            xor eax, eax                                ; Clear the Register
+            mov edx, offset prompt_WithdrawAmount       ; Prompt User to Input Amount
+            call writeString
+            call readDec 
+
+            ; Now we check that the entered amount is less than the user's balance
+            cmp eax, user_DefaultBalance
+            ja invalid_amountInput
+
+            ; If the withdrawal amount is less than the user's balance
+            sub user_DefaultBalance, eax
+            mov edx, offset msg_SuccessfulWithdraw
+            call writeString
+            call crlf
+
+            ; Prompt the user to press any key to go back to UserOperations
+            mov edx, offset prompt_Exit
+            call writeString
+            call readChar
+            call displayUserOptions
+
+            ; If the input is invalid, display the error message and ask the user to enter an amount again.
+            invalid_amountInput:
+                 mov edx, offset msg_UnsuccessfulWithdraw
+                 call writeString
+                 call crlf
+        jmp _withDrawal
+
+        popad
+    ret
+    userWithdraw ENDP
+
+    userDeposit PROC
+        pushad
+
+        ; Display Header
+        mov edx, offset msg_DepositHeader
+        call writeString
+        call crlf
+
+        ; First we prompt user how much amount of money he wants to deposit
+        _deposit:
+            xor eax,eax                                           ; Clear the register
+            mov edx, offset prompt_DepositAmount                  ; Prompt the user to input amount
+            call WriteString
+            call ReadDec
+
+            ; Check if the input amount is not greater than 50,000 (Conventional)
+            cmp eax, 50000
+            ja invalid_depositInput
+
+            ; Success, add the user inputted amount to his balance.
+            add user_DefaultBalance, eax
+            mov edx, offset msg_SuccessfulDeposit
+            call WriteString
+            call crlf
+
+            ; Prompt the user to press any key to go back to UserOperations
+            mov edx, offset prompt_Exit
+            call WriteString
+            call ReadChar
+            call displayUserOptions
+
+            ; If the input is invalid, display the error message and ask the user to enter an amount again
+            invalid_depositInput:
+                mov edx,offset msg_UnsuccessfulDeposit
+                call WriteString
+                call crlf
+        jmp _deposit
+
+        popad
+    ret
+    userDeposit ENDP
+
+    userCheckBalance PROC
+        pushad
+
+        ; Display header
+        mov edx, offset msg_BalanceHeader
+        call WriteString
+
+        ; Display the actual balance
+        mov edx, offset msg_Balance
+        call WriteString
+        mov eax, user_DefaultBalance
+        call WriteDec
+        mov edx, offset currencySuffix
+        call WriteString
+
+        ; Prompt the user to press any key to go back to UserOperations
+        mov edx, offset prompt_Exit
+        call WriteString
+        call ReadChar
+        call displayUserOptions
+
+        popad
+    ret
+    userCheckBalance ENDP
+
     employeeOperations PROC
         pushad
 
@@ -463,8 +604,8 @@ INCLUDE Irvine32.inc
                 cmp BYTE PTR [ecx + esi], 0             ; Check if we reached the end of predefined Card IDs
         jne _checkCardID                                ; If not, continue checking
 
-            ; If we reach here, no match was found
-            mov eax, 0                                  ; Return 0 for not equal
+        ; If we reach here, no match was found
+        mov eax, 0                                  ; Return 0 for not equal
     ret
     check_EmpCardID ENDP
 
@@ -500,4 +641,91 @@ INCLUDE Irvine32.inc
     ret
     check_EmpPIN ENDP
 
-	END main
+    handleError PROC
+        pushad
+
+        ; First display the last occurred error
+        call displayLastError
+
+        ; Then update the error variable with the new error message
+        call updateError
+
+        popad
+    ret
+    handleError ENDP
+
+    displayLastError PROC
+        pushad
+
+        ; Display the error prompt
+        mov edx, offset msg_LastError
+        call WriteString
+
+        ; Check if there is an error message
+        cmp BYTE PTR [lastErrorMsg], 0
+        je noError                       ; If no error message, display no error message
+
+        ; Display the last occurred error message
+        lea edx, lastErrorMsg
+        call WriteString
+        call crlf                        ; New line for better formatting
+        jmp end_display
+
+        noError:
+            ; Display the no error message
+            mov edx, offset msg_NoError
+            call WriteString
+            call crlf                        ; New line for better formatting
+
+        end_display:
+            popad
+    ret
+    displayLastError ENDP
+
+    updateError PROC
+        pushad
+
+        ; Get the new error message
+        mov edx, offset prompt_Error
+        call WriteString
+        mov ecx, 100                      ; Maximum number of characters to read
+        lea edx, errorMessage             ; Load the address of 'errorMessage'
+        call ReadString                   ; Read the input error message
+        call stripNewline                 ; Remove any trailing newline characters
+
+        ; Copy the new error message to 'lastErrorMsg'
+        lea esi, errorMessage             ; Load the address of 'errorMessage' into esi
+        lea edi, lastErrorMsg             ; Load the address of 'lastErrorMsg'
+        mov ecx, 100                      ; Maximum number of bytes to copy
+        rep movsb                         ; Copy the current error to the last error
+
+        popad
+    ret
+    updateError ENDP
+
+    updateSoftware PROC
+        pushad
+
+        ; Prompt the user to enter the update version number
+        mov edx, offset msg_UpdatePrompt
+        call WriteString
+        mov ecx, 20                      ; Maximum number of characters to read
+        lea edx, updateVersion           ; Load the address of 'updateVersion' into edx
+        call ReadString                  ; Call ReadString to take input
+        call stripNewline                ; Remove any trailing newline characters
+        call crlf                        ; New line for better formatting
+
+        ; Display the update complete message
+        mov edx, offset msg_UpdateComplete
+        call WriteString
+        lea edx, updateVersion
+        call WriteString
+        mov edx, offset msg_UpdateSuccess
+        call WriteString
+        call crlf                        ; New line for better formatting
+
+        popad
+    ret
+    updateSoftware ENDP
+
+    END main
