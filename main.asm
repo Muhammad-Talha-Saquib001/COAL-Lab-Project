@@ -31,8 +31,8 @@ INCLUDE Irvine32.inc
     ;======================================================================================================================
     ; Display Menu
     msg_Welcome BYTE "*****************************", 13, 10, \ 
-					           "* Welcome to the ATM System *", 13, 10, \ 
-					           "*****************************", 13, 10, 0
+		     "* Welcome to the ATM System *", 13, 10, \ 
+		     "*****************************", 13, 10, 0
     msg_MenuOptions BYTE " 1. Customer ", 13, 10, \
 					               " 2. Bank Employee ", 13, 10, 0 
     msg_PromptRole BYTE " Please choose your role: ", 0
